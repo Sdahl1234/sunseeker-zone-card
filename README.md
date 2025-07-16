@@ -11,3 +11,4 @@ Custom Lovelace cards for Sunseeker integrations.
 ```yaml
 type: 'custom:sunseeker-zone-card'
 ```
+<img width="907" height="728" alt="image" src="https://github.com/user-attachments/assets/62f3cdc7-2cc9-4d4f-80ec-d49c00af9554" />

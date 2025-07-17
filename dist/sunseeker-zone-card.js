@@ -42,14 +42,19 @@ function getUserLanguage(hass) {
 }
 
 class SunseekerZoneCard extends HTMLElement {
-    setConfig(config) {
-        this._config = config;
-        this._entity = config.entity;
+    constructor() {
+        super();
+        this.attachShadow({ mode: "open" });
         this._zones = [];
         this._collapsed = {};
         this._hass = null;
-        this.attachShadow({ mode: "open" });
-        this._render();
+        this._initialized = false
+    }
+
+    setConfig(config) {
+        this._config = config;
+        this._entity = config.entity;
+        this._initialized = true
     }
 
     set hass(hass) {
@@ -252,9 +257,38 @@ class SunseekerZoneCard extends HTMLElement {
                     .filter(zone => zone.toLowerCase() !== "global")
                     .map(zone => {
                         const zoneLc = zone.toLowerCase();
-                        const matches = Object.values(hass.states).filter(
-                            e => e.entity_id.toLowerCase().includes(`_${zoneLc}_`)
-                        );
+                        // Get the prefix from the selected entity's friendly_name
+                        let prefix = null;
+                        let debugLines = [];
+                        if (entity && hass.states[entity]?.attributes?.friendly_name) {
+                            const selectedFriendly = hass.states[entity].attributes.friendly_name.toLowerCase();
+                            const zoneIndex = selectedFriendly.indexOf(zoneLc);
+                            const lastSpaceIndex = selectedFriendly.lastIndexOf(" ");
+                            //debugLines.push(`<div style="color: #1976d2; font-size: 0.95em;">zoneindex <b>${zoneIndex}</b>: <b>${lastSpaceIndex ?? "(none)"}</b></div>`);
+                            if (lastSpaceIndex !== -1) {
+                                prefix = selectedFriendly.substring(0, lastSpaceIndex);
+                            } else if (zoneIndex !== -1) {
+                                prefix = selectedFriendly.substring(0, zoneIndex).replace(/\s+$/, "");
+                            }
+                            //debugLines.push(`<div style="color: #1976d2; font-size: 0.95em;">Selected entity friendlyname for zone <b>${zone}</b>: <b>${selectedFriendly ?? "(none)"}</b></div>`);
+                            //debugLines.push(`<div style="color: #1976d2; font-size: 0.95em;">Selected entity prefix for zone <b>${zone}</b>: <b>${prefix ?? "(none)"}</b></div>`);
+                        }
+
+                        // Filter entities by prefix before zone name in friendly_name
+                        const matches = Object.values(hass.states).filter(e => {
+                            const friendly = (e.attributes.friendly_name || e.entity_id).toLowerCase();
+                            const zoneIndex = friendly.indexOf(zoneLc);
+                            if (zoneIndex === -1 || !prefix) {
+                                //debugLines.push(`<div style="color: #888; font-size: 0.9em;">Entity <b>${friendly}</b>: zone not found or no prefix</div>`);
+                                return false;
+                            }
+                            // debugLines.push(`<div style="color: #888; font-size: 0.9em;">Entity <b>${friendly}</b>: prefix: ${prefix}</div>`);
+                            if (friendly.includes(prefix)) {
+                                return true
+                            } else {
+                                return false
+                            }
+                        });
                         return `
                             <div class="zone-block${collapsed[zone] ? "" : " open"}">
                                 <div class="zone-header" onclick="this.getRootNode().host._toggleCollapse('${zone}')">
@@ -262,6 +296,7 @@ class SunseekerZoneCard extends HTMLElement {
                                     <span>${collapsed[zone] ? "&#9654;" : "&#9660;"}</span>
                                 </div>
                                 <div class="zone-entities">
+                                    ${debugLines.join("")}
                                     ${
                                         matches.length
                                             ? matches.map(e => {
@@ -341,6 +376,7 @@ class SunseekerZoneCardEditor extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
+        this._initialized = false
     }
 
     setConfig(config) {
@@ -348,11 +384,14 @@ class SunseekerZoneCardEditor extends HTMLElement {
         this._entity = config.entity || "";
         this._header = config.header || "Zones";
         this._render();
+        this._initialized = true;
     }
 
     set hass(hass) {
         this._hass = hass;
-        this._render();
+        if (this._initialized) {
+            this._updateDom(); // Only update DOM, not full render
+        }
     }
 
     _onEntityChanged(ev) {

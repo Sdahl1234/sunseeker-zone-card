@@ -48,21 +48,69 @@ class SunseekerZoneCard extends HTMLElement {
         this._zones = [];
         this._collapsed = {};
         this._hass = null;
-        this._initialized = false
+        this._lzones = 0;
     }
 
     setConfig(config) {
         this._config = config;
         this._entity = config.entity;
-        this._initialized = true
+        this._render();
     }
 
     set hass(hass) {
         this._hass = hass;
         this._updateZones();
-        this._render();
+        if (this._lzones != this._zones.length) {
+            this._render();
+        } else {
+            this._updateDom();
+        }
+        this._lzones = this._zones.length;
     }
 
+    _updateDom() {
+        if (!this.shadowRoot || !this._hass || !this._zones) return;
+        this._zones.forEach(zone => {
+            const zoneLc = zone.toLowerCase();
+            // Find the zone block in the DOM
+            const zoneBlock = this.shadowRoot.querySelector(`.zone-block[data-zone="${zoneLc}"]`);
+            if (!zoneBlock) return;
+
+            // Update entity values inside this zone block
+            // For each entity row, update the displayed value/state
+            zoneBlock.querySelectorAll(".entity-row").forEach(row => {
+                const entityId = row.querySelector("[data-entity]")?.getAttribute("data-entity");
+                if (!entityId) return;
+                const stateObj = this._hass.states[entityId];
+                if (!stateObj) return;
+
+                // Update select
+                const selectEl = row.querySelector("select[data-entity]");
+                if (selectEl) {
+                    selectEl.value = stateObj.state;
+                }
+
+                // Update number
+                const numberEl = row.querySelector("input[type='number'][data-entity]");
+                if (numberEl) {
+                    numberEl.value = stateObj.state;
+                }
+
+                // Update switch
+                const switchEl = row.querySelector("input[type='checkbox'][data-entity]");
+                if (switchEl) {
+                    switchEl.checked = stateObj.state === "on";
+                }
+
+                // Update sensor/fallback value
+                const valueEl = row.querySelector(".entity-value");
+                if (valueEl && !selectEl && !numberEl && !switchEl) {
+                    const unit = stateObj.attributes.unit_of_measurement ? ` ${stateObj.attributes.unit_of_measurement}` : "";
+                    valueEl.textContent = `${stateObj.state}${unit}`;
+                }
+            });
+        });
+    }
     static getConfigElement() {
         return document.createElement("sunseeker-zone-card-editor");
     }
@@ -290,7 +338,7 @@ class SunseekerZoneCard extends HTMLElement {
                             }
                         });
                         return `
-                            <div class="zone-block${collapsed[zone] ? "" : " open"}">
+                            <div class="zone-block${collapsed[zone] ? "" : " open"}" data-zone="${zoneLc}">
                                 <div class="zone-header" onclick="this.getRootNode().host._toggleCollapse('${zone}')">
                                     <span>${zone}</span>
                                     <span>${collapsed[zone] ? "&#9654;" : "&#9660;"}</span>
@@ -393,6 +441,39 @@ class SunseekerZoneCardEditor extends HTMLElement {
             this._updateDom(); // Only update DOM, not full render
         }
     }
+
+    _updateDom() {
+        // Only update the preview section, not the whole editor
+        if (!this.shadowRoot) return;
+        const entity = this._entity;
+        const header = this._header;
+        const hass = this._hass;
+
+        const previewEl = this.shadowRoot.querySelector(".preview");
+        if (previewEl) {
+            previewEl.innerHTML = `
+                <span class="preview-label">Preview:</span><br>
+                <span>Header: <b>${header}</b></span><br>
+                <span>Entity: <b>${entity ? (hass?.states[entity]?.attributes?.friendly_name || entity) : "None selected"}</b></span>
+            `;
+        }
+
+        // Optionally, update the entity picker options if entities change
+        const selectEl = this.shadowRoot.getElementById("zone-entity");
+        if (selectEl && hass) {
+            const selectEntities = Object.keys(hass.states).filter(eid => eid.startsWith("select."));
+            // Only update options if the list has changed
+            if (selectEl.options.length - 1 !== selectEntities.length) {
+                selectEl.innerHTML = `
+                    <option value="">Select entity...</option>
+                    ${selectEntities.map(eid =>
+                        `<option value="${eid}"${eid === entity ? " selected" : ""}>${hass.states[eid].attributes.friendly_name || eid}</option>`
+                    ).join("")}
+                `;
+            }
+        }
+    }
+
 
     _onEntityChanged(ev) {
         this._entity = ev.target.value;

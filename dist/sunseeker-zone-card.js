@@ -70,6 +70,18 @@ class SunseekerZoneCard extends HTMLElement {
 
     _updateDom() {
         if (!this.shadowRoot || !this._hass || !this._zones) return;
+
+        // --- Update the switch entity state ---
+        const switchEntityId = this._config?.switch_entity;
+        if (switchEntityId) {
+            const switchObj = this._hass.states[switchEntityId];
+            const switchInput = this.shadowRoot.querySelector(`input[type="checkbox"][data-entity="${switchEntityId}"]`);
+            if (switchObj && switchInput) {
+                switchInput.checked = switchObj.state === "on";
+            }
+        }
+
+
         this._zones.forEach(zone => {
             const zoneLc = zone.toLowerCase();
             // Find the zone block in the DOM
@@ -174,6 +186,20 @@ class SunseekerZoneCard extends HTMLElement {
         const collapsed = this._collapsed;
         const header = (this._config && this._config.header) ? this._config.header : "Zones";
 
+        const switchEntityId = this._config?.switch_entity;
+        const switchObj = hass?.states?.[switchEntityId];
+        let switchHtml = "";
+        if (switchObj) {
+            const checked = switchObj.state === "on" ? "checked" : "";
+            const friendly = this._config?.switch_name || switchObj.attributes.friendly_name || switchEntityId;
+            switchHtml = `
+                <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                    <label style="margin-right: 12px;">${friendly}</label>
+                    <input type="checkbox" data-entity="${switchEntityId}" ${checked} onchange="this.getRootNode().host._handleSwitchChange(event)" />
+                </div>
+            `;
+        }
+
         // Entity picker for config mode (only select.*)
         let picker = "";
         if (this._config && this._config.editable) {
@@ -207,7 +233,6 @@ class SunseekerZoneCard extends HTMLElement {
                     border-radius: 12px;
                     background: var(--ha-card-bg);
                     box-shadow: 0 2px 6px rgba(25, 118, 210, 0.08);
-                    max-width: 420px;
                     margin: 0 auto;
                     padding-bottom: 8px;
                     padding-top: 12px; /* Add top padding */
@@ -227,7 +252,6 @@ class SunseekerZoneCard extends HTMLElement {
                     margin-bottom: 18px;
                     background: var(--ha-card-bg);
                     box-shadow: 0 2px 6px rgba(25, 118, 210, 0.08);
-                    max-width: 400px;
                     margin-left: auto;
                     margin-right: auto;
                     transition: box-shadow 0.2s;
@@ -300,6 +324,7 @@ class SunseekerZoneCard extends HTMLElement {
             </style>
             <div class="card-container">
                 <div class="card-header">${header}</div>
+                ${switchHtml}
                 ${picker}
                 ${zones
                     .filter(zone => zone.toLowerCase() !== "global")
@@ -424,13 +449,15 @@ class SunseekerZoneCardEditor extends HTMLElement {
     constructor() {
         super();
         this.attachShadow({ mode: "open" });
-        this._initialized = false
+        this._initialized = false;
     }
 
     setConfig(config) {
         this._config = config;
         this._entity = config.entity || "";
         this._header = config.header || "Zones";
+        this._switch_entity = config.switch_entity || "";
+        this._switch_name = config.switch_name || "";
         this._render();
         this._initialized = true;
     }
@@ -438,15 +465,16 @@ class SunseekerZoneCardEditor extends HTMLElement {
     set hass(hass) {
         this._hass = hass;
         if (this._initialized) {
-            this._updateDom(); // Only update DOM, not full render
+            this._updateDom();
         }
     }
 
     _updateDom() {
-        // Only update the preview section, not the whole editor
         if (!this.shadowRoot) return;
         const entity = this._entity;
         const header = this._header;
+        const switch_entity = this._switch_entity;
+        const switch_name = this._switch_name;
         const hass = this._hass;
 
         const previewEl = this.shadowRoot.querySelector(".preview");
@@ -454,15 +482,16 @@ class SunseekerZoneCardEditor extends HTMLElement {
             previewEl.innerHTML = `
                 <span class="preview-label">Preview:</span><br>
                 <span>Header: <b>${header}</b></span><br>
-                <span>Entity: <b>${entity ? (hass?.states[entity]?.attributes?.friendly_name || entity) : "None selected"}</b></span>
+                <span>Zone entity: <b>${entity ? (hass?.states[entity]?.attributes?.friendly_name || entity) : "None selected"}</b></span><br>
+                <span>Zone on/off Switch entity: <b>${switch_entity ? (hass?.states[switch_entity]?.attributes?.friendly_name || switch_entity) : "None selected"}</b></span><br>
+                <span>Switch display name: <b>${switch_name || "(default)"}</b></span>
             `;
         }
 
-        // Optionally, update the entity picker options if entities change
+        // Update entity pickers if needed
         const selectEl = this.shadowRoot.getElementById("zone-entity");
         if (selectEl && hass) {
             const selectEntities = Object.keys(hass.states).filter(eid => eid.startsWith("select."));
-            // Only update options if the list has changed
             if (selectEl.options.length - 1 !== selectEntities.length) {
                 selectEl.innerHTML = `
                     <option value="">Select entity...</option>
@@ -472,8 +501,24 @@ class SunseekerZoneCardEditor extends HTMLElement {
                 `;
             }
         }
+        const switchEl = this.shadowRoot.getElementById("switch-entity");
+        if (switchEl && hass) {
+            const switchEntities = Object.keys(hass.states).filter(eid => eid.startsWith("switch."));
+            if (switchEl.options.length - 1 !== switchEntities.length) {
+                switchEl.innerHTML = `
+                    <option value="">Select switch...</option>
+                    ${switchEntities.map(eid =>
+                        `<option value="${eid}"${eid === switch_entity ? " selected" : ""}>${hass.states[eid].attributes.friendly_name || eid}</option>`
+                    ).join("")}
+                `;
+            }
+        }
+        // Update switch name input
+        const switchNameInput = this.shadowRoot.getElementById("switch-name");
+        if (switchNameInput && switchNameInput.value !== switch_name) {
+            switchNameInput.value = switch_name;
+        }
     }
-
 
     _onEntityChanged(ev) {
         this._entity = ev.target.value;
@@ -487,9 +532,29 @@ class SunseekerZoneCardEditor extends HTMLElement {
         const selectionEnd = input.selectionEnd;
         this._header = value;
         this._emitConfig();
-        // Restore focus and cursor position after render
         requestAnimationFrame(() => {
             const inputEl = this.shadowRoot.getElementById("zone-header");
+            if (inputEl) {
+                inputEl.focus();
+                inputEl.setSelectionRange(selectionStart, selectionEnd);
+            }
+        });
+    }
+
+    _onSwitchChanged(ev) {
+        this._switch_entity = ev.target.value;
+        this._emitConfig();
+    }
+
+    _onSwitchNameChanged(ev) {
+        const input = ev.target;
+        const value = input.value;
+        const selectionStart = input.selectionStart;
+        const selectionEnd = input.selectionEnd;
+        this._switch_name = value;
+        this._emitConfig();
+        requestAnimationFrame(() => {
+            const inputEl = this.shadowRoot.getElementById("switch-name");
             if (inputEl) {
                 inputEl.focus();
                 inputEl.setSelectionRange(selectionStart, selectionEnd);
@@ -504,6 +569,8 @@ class SunseekerZoneCardEditor extends HTMLElement {
                     type: "custom:sunseeker-zone-card",
                     entity: this._entity || "",
                     header: this._header || "Zones",
+                    switch_entity: this._switch_entity || "",
+                    switch_name: this._switch_name || "",
                 }
             }
         }));
@@ -514,11 +581,15 @@ class SunseekerZoneCardEditor extends HTMLElement {
         const hass = this._hass;
         const entity = this._entity;
         const header = this._header;
+        const switch_entity = this._switch_entity;
+        const switch_name = this._switch_name;
 
-        // Get all select entities for picker
+        // Get all select and switch entities for pickers
         let selectEntities = [];
+        let switchEntities = [];
         if (hass) {
             selectEntities = Object.keys(hass.states).filter(eid => eid.startsWith("select."));
+            switchEntities = Object.keys(hass.states).filter(eid => eid.startsWith("switch."));
         }
 
         this.shadowRoot.innerHTML = `
@@ -585,19 +656,36 @@ class SunseekerZoneCardEditor extends HTMLElement {
                     </select>
                 </div>
                 <div class="editor-field">
+                    <label for="switch-entity">Zone on/off Switch entity</label>
+                    <select id="switch-entity">
+                        <option value="">Select switch...</option>
+                        ${switchEntities.map(eid =>
+                            `<option value="${eid}"${eid === switch_entity ? " selected" : ""}>${hass.states[eid].attributes.friendly_name || eid}</option>`
+                        ).join("")}
+                    </select>
+                </div>
+                <div class="editor-field">
+                    <label for="switch-name">Switch display name</label>
+                    <input type="text" id="switch-name" value="${switch_name || ""}" />
+                </div>
+                <div class="editor-field">
                     <label for="zone-header">Header</label>
                     <input type="text" id="zone-header" value="${header}" />
                 </div>
                 <div class="preview">
                     <span class="preview-label">Preview:</span><br>
                     <span>Header: <b>${header}</b></span><br>
-                    <span>Entity: <b>${entity ? (hass?.states[entity]?.attributes?.friendly_name || entity) : "None selected"}</b></span>
+                    <span>Zone entity: <b>${entity ? (hass?.states[entity]?.attributes?.friendly_name || entity) : "None selected"}</b></span><br>
+                    <span>Zone on/off Switch entity: <b>${switch_entity ? (hass?.states[switch_entity]?.attributes?.friendly_name || switch_entity) : "None selected"}</b></span><br>
+                    <span>Switch display name: <b>${switch_name || "(default)"}</b></span>
                 </div>
             </div>
         `;
 
         // Add event listeners for live editing
         this.shadowRoot.getElementById("zone-entity")?.addEventListener("change", this._onEntityChanged.bind(this));
+        this.shadowRoot.getElementById("switch-entity")?.addEventListener("change", this._onSwitchChanged.bind(this));
+        this.shadowRoot.getElementById("switch-name")?.addEventListener("input", this._onSwitchNameChanged.bind(this));
         this.shadowRoot.getElementById("zone-header")?.addEventListener("input", this._onHeaderChanged.bind(this));
     }
 }

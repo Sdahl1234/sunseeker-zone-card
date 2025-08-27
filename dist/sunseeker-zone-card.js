@@ -313,10 +313,6 @@ class SunseekerZoneCard extends HTMLElement {
                 cursor: pointer;
                 user-select: none;
             }
-            .card-header:hover {
-                background: var(--ha-card-accent);
-                color: var(--ha-card-bg);
-            }
             .card-collapsed .zone-block,
             .card-collapsed .switch-row,
             .card-collapsed .edit-row {
@@ -344,10 +340,6 @@ class SunseekerZoneCard extends HTMLElement {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-            }
-            .zone-header:hover {
-                background: var(--ha-card-accent);
-                color: var(--ha-card-bg);
             }
             .zone-entities {
                 padding: 10px 16px 12px 16px;
@@ -804,7 +796,7 @@ class SunseekerZoneCardEditor extends HTMLElement {
                     <label for="zone-header">Header</label>
                     <input type="text" id="zone-header" value="${header}" />
                 </div>
-                <div class="version">version: 1.0.4</div>
+                <div class="version">version: 1.0.5</div>
             </div>
         `;
 

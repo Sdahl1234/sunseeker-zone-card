@@ -1,35 +1,42 @@
 const OPTION_TRANSLATIONS = {
-    "Slow": {
+    "slow": {
+        "en": "Slow",
         "da": "Langsom",
         "de": "Langsam",
         "fr": "Lent"
     },
-    "Normal": {
+    "normal": {
+        "en": "Normal",
         "da": "Normal",
         "de": "Normal",
         "fr": "Normal"
     },
-    "Fast": {
+    "fast": {
+        "en": "Fast",
         "da": "Hurtig",
         "de": "Schnell",
         "fr": "Rapide"
     },
-    "Narrow": {
+    "narrow": {
+        "en": "Narrow",
         "da": "Smal",
         "de": "Schmal",
         "fr": "Étroite"
     },
-    "Wide": {
+    "wide": {
+        "en": "Wide",
         "da": "Bred",
         "de": "Breit",
         "fr": "Large"
     },
-    "Change pattern": {
+    "change_pattern": {
+        "en": "Change pattern",
         "da": "Skift mønster",
         "de": "Muster ändern",
         "fr": "Changer le motif"
     },
-    "User defined": {
+    "user_defined": {
+        "en": "User defined",
         "da": "Brugerdefineret",
         "de": "Benutzerdefiniert",
         "fr": "Défini par l'utilisateur"
@@ -457,7 +464,7 @@ class SunseekerZoneCard extends HTMLElement {
                                                         <span class="entity-value">
                                                             <select data-entity="${e.entity_id}" ${readonly} onchange="this.getRootNode().host._handleSelectChange(event)">
                                                                 ${options.map(opt => {
-                                        const translated = OPTION_TRANSLATIONS[opt]?.[lang] || opt;
+                                        const translated = OPTION_TRANSLATIONS[opt]?.[lang] ?? OPTION_TRANSLATIONS[opt]?.["en"] ?? opt;
                                         return `<option value="${opt}"${opt === current ? " selected" : ""}>${translated}</option>`;
                                     }).join("")}
                                                             </select>
@@ -796,7 +803,7 @@ class SunseekerZoneCardEditor extends HTMLElement {
                     <label for="zone-header">Header</label>
                     <input type="text" id="zone-header" value="${header}" />
                 </div>
-                <div class="version">version: 1.0.5</div>
+                <div class="version">version: 1.0.6</div>
             </div>
         `;
 

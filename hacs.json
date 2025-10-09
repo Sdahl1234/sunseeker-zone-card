@@ -1,10 +1,6 @@
 {
-	"name": "Sunseeker Lawn Mower zone Cards",
-	"render_readme": true,
-	"description": "Custom Lovelace cards for Sunseeker Lawn Mower integration.",
-	"category": "plugin",
-	"filename": "dist/sunseeker-zone-card.js",
-	"files": [
-		"dist/sunseeker-zone-card.js",
-	]
+  "name": "Sunseeker Lawn Mower zone Cards",
+  "content_in_root": false,
+  "render_readme": true,
+  "filename": "sunseeker-zone-card.js"
 }

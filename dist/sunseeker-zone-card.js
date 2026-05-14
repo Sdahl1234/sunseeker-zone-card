@@ -3,43 +3,73 @@ const OPTION_TRANSLATIONS = {
         "en": "Slow",
         "da": "Langsom",
         "de": "Langsam",
-        "fr": "Lent"
+        "fr": "Lent",
+        "fi": "Hidas",
+        "pl": "Wolno"
     },
     "normal": {
         "en": "Normal",
         "da": "Normal",
         "de": "Normal",
-        "fr": "Normal"
+        "fr": "Normal",
+        "fi": "Normaali",
+        "pl": "Normalnie"
     },
     "fast": {
         "en": "Fast",
         "da": "Hurtig",
         "de": "Schnell",
-        "fr": "Rapide"
+        "fr": "Rapide",
+        "fi": "Nopea",
+        "pl": "Szybko"
     },
     "narrow": {
         "en": "Narrow",
         "da": "Smal",
         "de": "Schmal",
-        "fr": "Étroite"
+        "fr": "Étroite",
+        "fi": "Kapea",
+        "pl": "Wąski"
     },
     "wide": {
         "en": "Wide",
         "da": "Bred",
         "de": "Breit",
-        "fr": "Large"
+        "fr": "Large",
+        "fi": "Leveä",
+        "pl": "Szeroki"
     },
     "change_pattern": {
         "en": "Change pattern",
         "da": "Skift mønster",
         "de": "Muster ändern",
-        "fr": "Changer le motif"
+        "fr": "Changer le motif",
+        "fi": "Vaihda kuvio",
+        "pl": "Zmień wzór"
     },
     "user_defined": {
         "en": "User defined",
         "da": "Brugerdefineret",
         "de": "Benutzerdefiniert",
-        "fr": "Défini par l'utilisateur"
+        "fr": "Défini par l'utilisateur",
+        "fi": "Käyttäjän määrittämä",
+        "pl": "Zdefiniowany przez użytkownika"
+    },
+    "effective": {
+        "en": "Effective",
+        "da": "Effektiv",
+        "de": "Effektiv",
+        "fr": "Efficace",
+        "fi": "Tehokas",
+        "pl": "Efektywny"
+    },
+    "zigzag": {
+        "en": "Zigzag",
+        "da": "Zigzag",
+        "de": "Zickzack",
+        "fr": "Zigzag",
+        "fi": "Siksak",
+        "pl": "Zygzak"
     }
 };
 
@@ -47,17 +77,23 @@ const BUTTON_TRANSLATIONS = {
     "Submit": {
         "da": "Gem",
         "de": "Speichern",
-        "fr": "Enregistrer"
+        "fr": "Enregistrer",
+        "fi": "Tallenna",
+        "pl": "Zapisz"
     },
     "Cancel": {
         "da": "Annuller",
         "de": "Abbrechen",
-        "fr": "Annuler"
+        "fr": "Annuler",
+        "fi": "Peruuta",
+        "pl": "Anuluj"
     },
     "Edit": {
         "da": "Rediger",
         "de": "Bearbeiten",
-        "fr": "Modifier"
+        "fr": "Modifier",
+        "fi": "Muokkaa",
+        "pl": "Edytuj"
     }
 };
 
@@ -88,6 +124,7 @@ class SunseekerZoneCard extends HTMLElement {
         this._entity = config.entity;
         this._editMode = false;
         this._collapsedCard = config.collapsedCard ?? false;
+        this._robotGeneration = config.robot_generation || "gen1";
         this._render();
     }
 
@@ -175,6 +212,7 @@ class SunseekerZoneCard extends HTMLElement {
             const entityId = event.target.getAttribute("data-entity");
             const value = event.target.value;
             this._localState[entityId] = value;
+            this._render();
         } else {
             const entityId = event.target.getAttribute("data-entity");
             const value = event.target.value;
@@ -408,7 +446,6 @@ class SunseekerZoneCard extends HTMLElement {
                 .map(zone => {
                     const zoneLc = zone.toLowerCase();
                     let prefix = null;
-                    let debugLines = [];
                     if (entity && hass.states[entity]?.attributes?.friendly_name) {
                         const selectedFriendly = hass.states[entity].attributes.friendly_name.toLowerCase();
                         const zoneIndex = selectedFriendly.indexOf(zoneLc);
@@ -420,18 +457,44 @@ class SunseekerZoneCard extends HTMLElement {
                         }
                     }
 
+                    const isGen2 = (this._config.robot_generation || "gen1") === "gen2";
                     const matches = Object.values(hass.states).filter(e => {
                         const friendly = (e.attributes.friendly_name || e.entity_id).toLowerCase();
                         const zoneIndex = friendly.indexOf(zoneLc);
-                        if (zoneIndex === -1 || !prefix) {
-                            return false;
-                        }
-                        if (friendly.includes(prefix)) {
-                            return true;
-                        } else {
-                            return false;
-                        }
+                        if (zoneIndex === -1 || !prefix) return false;
+                        if (!friendly.includes(prefix)) return false;
+                        // Generation filtering
+                        if (isGen2 && friendly.includes("cutting angle")) return false;
+                        if (!isGen2 && friendly.includes("zigzag")) return false;
+                        return true;
                     });
+                    let displayMatches = matches;
+                    if (isGen2) {
+                        const configDeviceId = hass.entities?.[entity]?.device_id;
+                        const patternEntity = Object.values(hass.states).find(e => {
+                            if (e.entity_id.split(".")[0] !== "select") return false;
+                            const tk = hass.entities?.[e.entity_id]?.translation_key || "";
+                            if (!tk.includes("cutting_pattern")) return false;
+                            if (configDeviceId && hass.entities?.[e.entity_id]?.device_id !== configDeviceId) return false;
+                            const f = (e.attributes.friendly_name || e.entity_id.replace(/_/g, " ")).toLowerCase();
+                            return f.includes(zoneLc);
+                        });
+                        const patternState = patternEntity
+                            ? (this._editMode && this._localState[patternEntity.entity_id] !== undefined
+                                ? this._localState[patternEntity.entity_id]
+                                : patternEntity.state)
+                            : null;
+                        const ps = patternState !== null ? String(patternState).toLowerCase() : null;
+                        const isZigzag = ps === "zigzag" || ps === "4";
+                        if (ps !== null && !isZigzag) {
+                            displayMatches = matches.filter(e => {
+                                const tk = hass.entities?.[e.entity_id]?.translation_key || "";
+                                if (tk.includes("zigzag")) return false;
+                                const f = (e.attributes.friendly_name || e.entity_id.replace(/_/g, " ")).toLowerCase();
+                                return !f.includes("zigzag");
+                            });
+                        }
+                    }
                     return `
                         <div class="zone-block${collapsed[zone] ? "" : " open"}" data-zone="${zoneLc}">
                             <div class="zone-header" onclick="this.getRootNode().host._toggleCollapse('${zone}')">
@@ -439,9 +502,19 @@ class SunseekerZoneCard extends HTMLElement {
                                 <span>${collapsed[zone] ? "&#9654;" : "&#9660;"}</span>
                             </div>
                             <div class="zone-entities">
-                                ${debugLines.join("")}
-                                ${matches.length
-                            ? matches.map(e => {
+                                ${displayMatches.length
+                            ? displayMatches.slice().sort((a, b) => {
+                                const fa = (a.attributes.friendly_name || a.entity_id).toLowerCase();
+                                const fb = (b.attributes.friendly_name || b.entity_id).toLowerCase();
+                                const numA = parseInt((fa.match(/(\d+)$/) || [0, 0])[1]);
+                                const numB = parseInt((fb.match(/(\d+)$/) || [0, 0])[1]);
+                                if (numA !== numB) return numA - numB;
+                                const domA = a.entity_id.split(".")[0];
+                                const domB = b.entity_id.split(".")[0];
+                                if (domA === "number" && domB === "switch") return -1;
+                                if (domA === "switch" && domB === "number") return 1;
+                                return fa.localeCompare(fb);
+                            }).map(e => {
                                 const friendly = e.attributes.friendly_name || e.entity_id;
                                 let afterZone = friendly;
                                 const zoneIndex = friendly.toLowerCase().indexOf(zoneLc);
@@ -549,6 +622,7 @@ class SunseekerZoneCardEditor extends HTMLElement {
         this._switch_entity = config.switch_entity || "";
         this._switch_name = config.switch_name || "";
         this._collapsedCard = config.collapsedCard ?? false;
+        this._robotGeneration = config.robot_generation || "gen1";
         this._render();
         this._initialized = true;
     }
@@ -569,6 +643,7 @@ class SunseekerZoneCardEditor extends HTMLElement {
         const collapsedCard = this._collapsedCard;
         const hass = this._hass;
 
+        const robotGeneration = this._robotGeneration;
         const previewEl = this.shadowRoot.querySelector(".preview");
         if (previewEl) {
             previewEl.innerHTML = `
@@ -577,8 +652,13 @@ class SunseekerZoneCardEditor extends HTMLElement {
                 <span>Zone entity: <b>${entity ? (hass?.states[entity]?.attributes?.friendly_name || entity) : "None selected"}</b></span><br>
                 <span>Zone on/off Switch entity: <b>${switch_entity ? (hass?.states[switch_entity]?.attributes?.friendly_name || switch_entity) : "None selected"}</b></span><br>
                 <span>Switch display name: <b>${switch_name || "(default)"}</b></span><br>
-                <span>Show collapsed: <b>${collapsedCard ? "Yes" : "No"}</b></span>
+                <span>Show collapsed: <b>${collapsedCard ? "Yes" : "No"}</b></span><br>
+                <span>Robot generation: <b>${robotGeneration === "gen2" ? "Gen2 (Zigzag)" : "Gen1"}</b></span>
             `;
+        }
+        const genEl = this.shadowRoot.getElementById("robot-generation");
+        if (genEl && genEl.value !== robotGeneration) {
+            genEl.value = robotGeneration;
         }
 
         // Update entity pickers if needed
@@ -665,6 +745,11 @@ class SunseekerZoneCardEditor extends HTMLElement {
         this._emitConfig();
     }
 
+    _onGenerationChanged(ev) {
+        this._robotGeneration = ev.target.value;
+        this._emitConfig();
+    }
+
     _emitConfig() {
         this.dispatchEvent(new CustomEvent("config-changed", {
             detail: {
@@ -675,6 +760,7 @@ class SunseekerZoneCardEditor extends HTMLElement {
                     switch_entity: this._switch_entity || "",
                     switch_name: this._switch_name || "",
                     collapsedCard: this._collapsedCard || false,
+                    robot_generation: this._robotGeneration || "gen1",
                 }
             }
         }));
@@ -791,19 +877,23 @@ class SunseekerZoneCardEditor extends HTMLElement {
                     <input type="checkbox" id="collapsed-card" ${collapsedCard ? "checked" : ""} />
                     <label for="collapsed-card">Show collapsed</label>
                 </div>
+                <div class="editor-field">
+                    <label for="robot-generation">Robot generation</label>
+                    <select id="robot-generation">
+                        <option value="gen1"${(this._robotGeneration || "gen1") === "gen1" ? " selected" : ""}>Gen1 – Single cutting angle</option>
+                        <option value="gen2"${this._robotGeneration === "gen2" ? " selected" : ""}>Gen2 – Zigzag angles</option>
+                    </select>
+                </div>
                 <div class="preview">
                     <span class="preview-label">Preview:</span><br>
                     <span>Header: <b>${header}</b></span><br>
                     <span>Zone entity: <b>${entity ? (hass?.states[entity]?.attributes?.friendly_name || entity) : "None selected"}</b></span><br>
                     <span>Zone on/off Switch entity: <b>${switch_entity ? (hass?.states[switch_entity]?.attributes?.friendly_name || switch_entity) : "None selected"}</b></span><br>
                     <span>Switch display name: <b>${switch_name || "(default)"}</b></span><br>
-                    <span>Show collapsed: <b>${collapsedCard ? "Yes" : "No"}</b></span>
+                    <span>Show collapsed: <b>${collapsedCard ? "Yes" : "No"}</b></span><br>
+                    <span>Robot generation: <b>${(this._robotGeneration || "gen1") === "gen2" ? "Gen2 (Zigzag)" : "Gen1"}</b></span>
                 </div>
-                <div class="editor-field">
-                    <label for="zone-header">Header</label>
-                    <input type="text" id="zone-header" value="${header}" />
-                </div>
-                <div class="version">version: 1.0.6</div>
+                <div class="version">version: 1.0.7</div>
             </div>
         `;
 
@@ -813,6 +903,7 @@ class SunseekerZoneCardEditor extends HTMLElement {
         this.shadowRoot.getElementById("switch-name")?.addEventListener("input", this._onSwitchNameChanged.bind(this));
         this.shadowRoot.getElementById("zone-header")?.addEventListener("input", this._onHeaderChanged.bind(this));
         this.shadowRoot.getElementById("collapsed-card")?.addEventListener("change", this._onCollapsedChanged.bind(this));
+        this.shadowRoot.getElementById("robot-generation")?.addEventListener("change", this._onGenerationChanged.bind(this));
     }
 }
 

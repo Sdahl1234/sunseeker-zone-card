@@ -108,4 +108,5 @@ robot_generation: gen2
 | 1.0.6 | Initial release |
 | 1.0.7 | Gen2 support: entity filtering, zigzag sort order, cutting angle hiding |
 | 1.0.8 | Gen2 zigzag show/hide by cutting pattern; edit-mode reactivity; multi-mower device scoping; Finnish and Polish translations |
+| 1.0.9 | Gen2 zigzag not allways shown |
 

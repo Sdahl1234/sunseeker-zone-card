@@ -468,33 +468,7 @@ class SunseekerZoneCard extends HTMLElement {
                         if (!isGen2 && friendly.includes("zigzag")) return false;
                         return true;
                     });
-                    let displayMatches = matches;
-                    if (isGen2) {
-                        const configDeviceId = hass.entities?.[entity]?.device_id;
-                        const patternEntity = Object.values(hass.states).find(e => {
-                            if (e.entity_id.split(".")[0] !== "select") return false;
-                            const tk = hass.entities?.[e.entity_id]?.translation_key || "";
-                            if (!tk.includes("cutting_pattern")) return false;
-                            if (configDeviceId && hass.entities?.[e.entity_id]?.device_id !== configDeviceId) return false;
-                            const f = (e.attributes.friendly_name || e.entity_id.replace(/_/g, " ")).toLowerCase();
-                            return f.includes(zoneLc);
-                        });
-                        const patternState = patternEntity
-                            ? (this._editMode && this._localState[patternEntity.entity_id] !== undefined
-                                ? this._localState[patternEntity.entity_id]
-                                : patternEntity.state)
-                            : null;
-                        const ps = patternState !== null ? String(patternState).toLowerCase() : null;
-                        const isZigzag = ps === "zigzag" || ps === "4";
-                        if (ps !== null && !isZigzag) {
-                            displayMatches = matches.filter(e => {
-                                const tk = hass.entities?.[e.entity_id]?.translation_key || "";
-                                if (tk.includes("zigzag")) return false;
-                                const f = (e.attributes.friendly_name || e.entity_id.replace(/_/g, " ")).toLowerCase();
-                                return !f.includes("zigzag");
-                            });
-                        }
-                    }
+                    const displayMatches = matches;
                     return `
                         <div class="zone-block${collapsed[zone] ? "" : " open"}" data-zone="${zoneLc}">
                             <div class="zone-header" onclick="this.getRootNode().host._toggleCollapse('${zone}')">
@@ -893,7 +867,7 @@ class SunseekerZoneCardEditor extends HTMLElement {
                     <span>Show collapsed: <b>${collapsedCard ? "Yes" : "No"}</b></span><br>
                     <span>Robot generation: <b>${(this._robotGeneration || "gen1") === "gen2" ? "Gen2 (Zigzag)" : "Gen1"}</b></span>
                 </div>
-                <div class="version">version: 1.0.7</div>
+                <div class="version">version: 1.0.9</div>
             </div>
         `;
 

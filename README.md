@@ -2,8 +2,7 @@
 
 A custom Lovelace card for the [Sunseeker](https://www.home-assistant.io/integrations/sunseeker/) integration that provides a zone-by-zone view and editor for your robot mower's zone settings.
 
-<img width="907" height="728" alt="image" src="https://github.com/user-attachments/assets/62f3cdc7-2cc9-4d4f-80ec-d49c00af9554" />
-
+<img width="910" height="810" alt="image" src="https://github.com/user-attachments/assets/e78211f8-6a69-4fd0-a67d-90aabe5ffe41" />
 ---
 
 ## Features
